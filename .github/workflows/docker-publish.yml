@@ -1,0 +1,57 @@
+name: Publish Lab 8 to Docker Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      dockerhub_username:
+        description: Docker Hub username
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ inputs.dockerhub_username }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build versioned and latest images
+        run: |
+          if [[ ! "$DOCKERHUB_USERNAME" =~ ^[a-z0-9][a-z0-9_-]{1,29}$ ]]; then
+            echo 'Enter a valid Docker Hub username.' >&2
+            exit 1
+          fi
+          image="$DOCKERHUB_USERNAME/seg4105-bug-triage"
+          docker build -t "$image:1.0" -t "$image:latest" .
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Publish both tags
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [[ -z "$DOCKERHUB_TOKEN" ]]; then
+            echo 'Add the DOCKERHUB_TOKEN repository secret before running this workflow.' >&2
+            exit 1
+          fi
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          docker push "$IMAGE:1.0"
+          docker push "$IMAGE:latest"
+          docker logout
+      - name: Pull and verify the published image
+        run: |
+          docker image rm "$IMAGE:1.0" "$IMAGE:latest"
+          docker run --pull=always -d --name triage -p 127.0.0.1:8080:8080 "$IMAGE:latest"
+          curl --fail --retry 15 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/health
+          curl --fail --silent http://127.0.0.1:8080/ | grep -q 'Get recommendation'
+          report='{"title":"Login timeout","description":"The login session hits a timeout."}'
+          curl --fail --silent -H 'Content-Type: application/json' --data "$report" http://127.0.0.1:8080/api/reports | jq -e '.category == "Authentication" and .severity == "High" and .team == "Identity"'
+          docker image inspect --format '{{ index .RepoDigests 0 }}' "$IMAGE:latest"
+      - name: Stop the test container
+        if: always()
+        run: |
+          if docker container inspect triage >/dev/null 2>&1; then
+            docker rm -f triage
+          fi
