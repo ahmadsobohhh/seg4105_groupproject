@@ -20,3 +20,9 @@ docker run --rm -p 127.0.0.1:8080:8080 seg4105-bug-triage:1.0
 ~~~
 
 The app uses SQLite in the local data folder. The example container uses temporary storage that is removed when the container exits. Use synthetic reports for the lab demo.
+
+## Documentation
+
+- [Software components](docs/COMPONENTS.md)
+- [System architecture](docs/ARCHITECTURE.md)
+- [Development methodology](docs/METHODOLOGY.md)
