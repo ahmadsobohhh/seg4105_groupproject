@@ -1,0 +1,9 @@
+.git
+.gitignore
+docs
+README.md
+__pycache__
+data
+*.sqlite3
+.env
+*.log
