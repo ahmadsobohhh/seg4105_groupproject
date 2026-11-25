@@ -18,7 +18,7 @@ jobs:
       - name: Verify the container
         run: |
           docker run -d --name triage -p 127.0.0.1:8080:8080 seg4105-bug-triage:1.0
-          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/health
+          curl --fail --retry 15 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/health
           curl --fail --silent http://127.0.0.1:8080/ | grep -q 'Get recommendation'
           report='{"title":"Login timeout","description":"The login session hits a timeout."}'
           first=$(curl --fail --silent -H 'Content-Type: application/json' --data "$report" http://127.0.0.1:8080/api/reports)
