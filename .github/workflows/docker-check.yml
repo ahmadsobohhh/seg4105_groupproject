@@ -1,0 +1,30 @@
+name: Lab 8 Docker check
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t seg4105-bug-triage:1.0 .
+      - name: Verify the container
+        run: |
+          docker run -d --name triage -p 127.0.0.1:8080:8080 seg4105-bug-triage:1.0
+          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/health
+          curl --fail --silent http://127.0.0.1:8080/ | grep -q 'Get recommendation'
+          report='{"title":"Login timeout","description":"The login session hits a timeout."}'
+          first=$(curl --fail --silent -H 'Content-Type: application/json' --data "$report" http://127.0.0.1:8080/api/reports)
+          second=$(curl --fail --silent -H 'Content-Type: application/json' --data "$report" http://127.0.0.1:8080/api/reports)
+          jq -e '.category == "Authentication" and .severity == "High" and .team == "Identity" and .possible_duplicate == null' <<< "$first"
+          jq -e '.possible_duplicate.id == 1' <<< "$second"
+      - name: Read container logs on failure
+        if: failure()
+        run: docker logs triage
